@@ -9,7 +9,15 @@ import arrow
 from arrow import Arrow
 from dateutil import tz
 from dateutil.tz import tzlocal
-from pydantic import BaseModel, Field, validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    GetCoreSchemaHandler,
+    ValidationInfo,
+    field_validator,
+)
+from pydantic_core import core_schema
 from typing_extensions import Final
 
 from .const import (
@@ -47,26 +55,14 @@ def to_enum(
 class ConfiguredBaseModel(BaseModel):
     """An already configured pydantic model."""
 
-    class Config:
-        """Config for pydantic model."""
-
-        ignore_extra: Final = True
-        allow_extra: Final = False
-        allow_mutation: Final = False
+    model_config = ConfigDict(extra="ignore", frozen=True)
 
 
 class TimeZone(tzlocal):
     """Subclass of tzinfo for parsing timezones."""
 
     @classmethod
-    def __get_validators__(cls) -> Any:
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value: Any) -> tzinfo:
+    def _validate(cls, value: Any) -> tzinfo:
         """Convert input to the desired object."""
         if isinstance(value, tzinfo):
             return value
@@ -78,19 +74,19 @@ class TimeZone(tzlocal):
 
         raise TypeError("string or tzinfo required")
 
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Get pydantic core schema."""
+        return core_schema.no_info_plain_validator_function(cls._validate)
+
 
 class ArrowType(Arrow):
     """Subclass of Arrow for parsing dates."""
 
     @classmethod
-    def __get_validators__(cls) -> Any:
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value: Any) -> Arrow:
+    def _validate(cls, value: Any) -> Arrow:
         """Convert input to the desired object."""
         if isinstance(value, str):
             if value.isdigit():
@@ -102,6 +98,13 @@ class ArrowType(Arrow):
             return value
 
         raise TypeError("string or int required")
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """Get pydantic core schema."""
+        return core_schema.no_info_plain_validator_function(cls._validate)
 
 
 class SleepModel(IntEnum):
@@ -276,19 +279,9 @@ class SleepGetSerie(ConfiguredBaseModel):
     rr: Tuple[SleepGetTimestampValue, ...] = ()  # pylint: disable=invalid-name
     snoring: Tuple[SleepGetTimestampValue, ...] = ()
 
-    @validator("hr", pre=True)
+    @field_validator("hr", "rr", "snoring", mode="before")
     @classmethod
-    def _hr_to_tuple(cls, value: Dict[str, int]) -> Tuple:
-        return SleepGetSerie._timestamp_value_to_object(value)
-
-    @validator("rr", pre=True)
-    @classmethod
-    def _rr_to_tuple(cls, value: Dict[str, int]) -> Tuple:
-        return SleepGetSerie._timestamp_value_to_object(value)
-
-    @validator("snoring", pre=True)
-    @classmethod
-    def _snoring_to_tuple(cls, value: Dict[str, int]) -> Tuple:
+    def _timestamp_value_to_tuple(cls, value: Dict[str, int]) -> Tuple:
         return SleepGetSerie._timestamp_value_to_object(value)
 
     @classmethod
@@ -307,7 +300,7 @@ class SleepGetSerie(ConfiguredBaseModel):
 
         return cast(Tuple[SleepGetTimestampValue, ...], value)
 
-    @validator("state", pre=True)
+    @field_validator("state", mode="before")
     @classmethod
     def _state_to_enum(cls, value: Any) -> SleepState:
         return to_enum(SleepState, value, SleepState.UNKNOWN)
@@ -319,7 +312,7 @@ class SleepGetResponse(ConfiguredBaseModel):
     model: SleepModel
     series: Tuple[SleepGetSerie, ...]
 
-    @validator("model", pre=True)
+    @field_validator("model", mode="before")
     @classmethod
     def _model_to_enum(cls, value: Any) -> SleepModel:
         return to_enum(SleepModel, value, SleepModel.UNKNOWN)
@@ -361,33 +354,12 @@ class GetSleepSummarySerie(ConfiguredBaseModel):
     data: GetSleepSummaryData
     id: Optional[int] = None
 
-    @validator("startdate")
+    @field_validator("startdate", "enddate", "date", "modified")
     @classmethod
-    def _set_timezone_on_startdate(
-        cls, value: ArrowType, values: Dict[str, Any]
-    ) -> Arrow:
-        return cast(Arrow, value.to(values["timezone"]))
+    def _set_timezone(cls, value: ArrowType, info: ValidationInfo) -> Arrow:
+        return cast(Arrow, value.to(info.data["timezone"]))
 
-    @validator("enddate")
-    @classmethod
-    def _set_timezone_on_enddate(
-        cls, value: ArrowType, values: Dict[str, Any]
-    ) -> Arrow:
-        return cast(Arrow, value.to(values["timezone"]))
-
-    @validator("date")
-    @classmethod
-    def _set_timezone_on_date(cls, value: ArrowType, values: Dict[str, Any]) -> Arrow:
-        return cast(Arrow, value.to(values["timezone"]))
-
-    @validator("modified")
-    @classmethod
-    def _set_timezone_on_modified(
-        cls, value: ArrowType, values: Dict[str, Any]
-    ) -> Arrow:
-        return cast(Arrow, value.to(values["timezone"]))
-
-    @validator("model", pre=True)
+    @field_validator("model", mode="before")
     @classmethod
     def _model_to_enum(cls, value: Any) -> SleepModel:
         return to_enum(SleepModel, value, SleepModel.UNKNOWN)
@@ -408,7 +380,7 @@ class MeasureGetMeasMeasure(ConfiguredBaseModel):
     unit: int
     value: int
 
-    @validator("type", pre=True)
+    @field_validator("type", mode="before")
     @classmethod
     def _type_to_enum(cls, value: Any) -> MeasureType:
         return to_enum(MeasureType, value, MeasureType.UNKNOWN)
@@ -425,14 +397,14 @@ class MeasureGetMeasGroup(ConfiguredBaseModel):
     grpid: int
     measures: Tuple[MeasureGetMeasMeasure, ...]
 
-    @validator("attrib", pre=True)
+    @field_validator("attrib", mode="before")
     @classmethod
     def _attrib_to_enum(cls, value: Any) -> MeasureGetMeasGroupAttrib:
         return to_enum(
             MeasureGetMeasGroupAttrib, value, MeasureGetMeasGroupAttrib.UNKNOWN
         )
 
-    @validator("category", pre=True)
+    @field_validator("category", mode="before")
     @classmethod
     def _category_to_enum(cls, value: Any) -> MeasureGetMeasGroupCategory:
         return to_enum(
@@ -449,12 +421,10 @@ class MeasureGetMeasResponse(ConfiguredBaseModel):
     timezone: TimeZone
     updatetime: ArrowType
 
-    @validator("updatetime")
+    @field_validator("updatetime")
     @classmethod
-    def _set_timezone_on_updatetime(
-        cls, value: ArrowType, values: Dict[str, Any]
-    ) -> Arrow:
-        return cast(Arrow, value.to(values["timezone"]))
+    def _set_timezone_on_updatetime(cls, value: ArrowType, info: ValidationInfo) -> Arrow:
+        return cast(Arrow, value.to(info.data["timezone"]))
 
 
 class MeasureGetActivityActivity(
@@ -530,7 +500,7 @@ class HeartGetResponse(ConfiguredBaseModel):
     sampling_frequency: int
     wearposition: HeartWearPosition
 
-    @validator("wearposition", pre=True)
+    @field_validator("wearposition", mode="before")
     @classmethod
     def _wearposition_to_enum(cls, value: Any) -> HeartWearPosition:
         return to_enum(HeartWearPosition, value, HeartWearPosition.UNKNOWN)
@@ -542,7 +512,7 @@ class HeartListECG(ConfiguredBaseModel):
     signalid: int
     afib: AfibClassification
 
-    @validator("afib", pre=True)
+    @field_validator("afib", mode="before")
     @classmethod
     def _afib_to_enum(cls, value: Any) -> AfibClassification:
         return to_enum(AfibClassification, value, AfibClassification.UNKNOWN)
@@ -569,7 +539,7 @@ class HeartListSerie(ConfiguredBaseModel):
 
     deviceid: Optional[str] = None
 
-    @validator("model", pre=True)
+    @field_validator("model", mode="before")
     @classmethod
     def _model_to_enum(cls, value: Any) -> HeartModel:
         return to_enum(HeartModel, value, HeartModel.UNKNOWN)
@@ -642,7 +612,7 @@ class NotifyListProfile(ConfiguredBaseModel):
     expires: Optional[ArrowType]
     comment: Optional[str]
 
-    @validator("appli", pre=True)
+    @field_validator("appli", mode="before")
     @classmethod
     def _appli_to_enum(cls, value: Any) -> NotifyAppli:
         return to_enum(NotifyAppli, value, NotifyAppli.UNKNOWN)
@@ -661,7 +631,7 @@ class NotifyGetResponse(ConfiguredBaseModel):
     callbackurl: str
     comment: Optional[str]
 
-    @validator("appli", pre=True)
+    @field_validator("appli", mode="before")
     @classmethod
     def _appli_to_enum(cls, value: Any) -> NotifyAppli:
         return to_enum(NotifyAppli, value, NotifyAppli.UNKNOWN)
