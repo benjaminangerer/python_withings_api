@@ -1,9 +1,11 @@
 """Tests for common code."""
+
 from typing import Any, Dict
 
 import arrow
 import pytest
 from typing_extensions import Final
+
 from withings_api.common import (
     ArrowType,
     AuthFailedException,
@@ -48,22 +50,22 @@ from .common import TIMEZONE0, TIMEZONE_STR0
 def test_time_zone_validate() -> None:
     """Test TimeZone conversation."""
     with pytest.raises(TypeError):
-        assert TimeZone.validate(123)
+        assert TimeZone._validate(123)
     with pytest.raises(ValueError):
-        assert TimeZone.validate("NOT_A_TIMEZONE")
-    assert TimeZone.validate(TIMEZONE_STR0) == TIMEZONE0
+        assert TimeZone._validate("NOT_A_TIMEZONE")
+    assert TimeZone._validate(TIMEZONE_STR0) == TIMEZONE0
 
 
 def test_arrow_type_validate() -> None:
     """Test ArrowType conversation."""
     with pytest.raises(TypeError):
-        assert ArrowType.validate(1.23)
+        assert ArrowType._validate(1.23)
 
     arrow_obj: Final = arrow.get(1234567)
-    assert ArrowType.validate("1234567") == arrow_obj
-    assert ArrowType.validate(str(arrow_obj)) == arrow_obj
-    assert ArrowType.validate(1234567) == arrow_obj
-    assert ArrowType.validate(arrow_obj) == arrow_obj
+    assert ArrowType._validate("1234567") == arrow_obj
+    assert ArrowType._validate(str(arrow_obj)) == arrow_obj
+    assert ArrowType._validate(1234567) == arrow_obj
+    assert ArrowType._validate(arrow_obj) == arrow_obj
 
 
 def test_maybe_update_credentials() -> None:

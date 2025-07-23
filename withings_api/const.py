@@ -1,4 +1,5 @@
 """Constant values."""
+
 from typing_extensions import Final
 
 LOG_NAMESPACE: Final = "python_withings_api"

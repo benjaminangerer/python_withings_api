@@ -4,6 +4,7 @@ Python library for the Withings Health API.
 Withings Health API
 <https://developer.health.withings.com/api>
 """
+
 from abc import abstractmethod
 import datetime
 import json
@@ -60,17 +61,17 @@ def update_params(
 def adjust_withings_token(response: Response) -> Response:
     """Restructures token from withings response::
 
-        {
-            "status": [{integer} Withings API response status],
-            "body": {
-                "access_token": [{string} Your new access_token],
-                "expires_in": [{integer} Access token expiry delay in seconds],
-                "token_type": [{string] HTTP Authorization Header format: Bearer],
-                "scope": [{string} Scopes the user accepted],
-                "refresh_token": [{string} Your new refresh_token],
-                "userid": [{string} The Withings ID of the user]
-            }
+    {
+        "status": [{integer} Withings API response status],
+        "body": {
+            "access_token": [{string} Your new access_token],
+            "expires_in": [{integer} Access token expiry delay in seconds],
+            "token_type": [{string] HTTP Authorization Header format: Bearer],
+            "scope": [{string} Scopes the user accepted],
+            "refresh_token": [{string} Your new refresh_token],
+            "userid": [{string} The Withings ID of the user]
         }
+    }
     """
     try:
         token = json.loads(response.text)
@@ -278,10 +279,16 @@ class AbstractWithingsApi:
         params: Final[ParamsType] = {}
 
         update_params(
-            params, "startdate", startdate, lambda val: arrow.get(val).int_timestamp,
+            params,
+            "startdate",
+            startdate,
+            lambda val: arrow.get(val).int_timestamp,
         )
         update_params(
-            params, "enddate", enddate, lambda val: arrow.get(val).int_timestamp,
+            params,
+            "enddate",
+            enddate,
+            lambda val: arrow.get(val).int_timestamp,
         )
         update_params(params, "offset", offset)
         update_params(params, "action", "list")

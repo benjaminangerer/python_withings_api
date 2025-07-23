@@ -1,4 +1,5 @@
 """Common test code."""
+
 from datetime import tzinfo
 from typing import cast
 

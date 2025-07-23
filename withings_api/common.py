@@ -1,4 +1,5 @@
 """Common classes and functions."""
+
 from dataclasses import dataclass
 from datetime import tzinfo
 from enum import Enum, IntEnum
@@ -55,7 +56,7 @@ def to_enum(
 class ConfiguredBaseModel(BaseModel):
     """An already configured pydantic model."""
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    model_config = ConfigDict(extra="ignore", frozen=True, arbitrary_types_allowed=True)
 
 
 class TimeZone(tzlocal):
@@ -75,11 +76,21 @@ class TimeZone(tzlocal):
         raise TypeError("string or tzinfo required")
 
     @classmethod
+    def from_tzinfo(cls, value: tzinfo) -> tzinfo:
+        """Create TimeZone from tzinfo object."""
+        return cls._validate(value)
+
+    @classmethod
     def __get_pydantic_core_schema__(
         cls, source_type: Any, handler: GetCoreSchemaHandler
     ) -> core_schema.CoreSchema:
         """Get pydantic core schema."""
-        return core_schema.no_info_plain_validator_function(cls._validate)
+        return core_schema.union_schema(
+            [
+                core_schema.is_instance_schema(tzinfo),
+                core_schema.no_info_plain_validator_function(cls._validate),
+            ]
+        )
 
 
 class ArrowType(Arrow):
@@ -100,11 +111,21 @@ class ArrowType(Arrow):
         raise TypeError("string or int required")
 
     @classmethod
+    def from_arrow(cls, value: Arrow) -> "ArrowType":
+        """Create ArrowType from Arrow object."""
+        return cls._validate(value)  # type: ignore[return-value]
+
+    @classmethod
     def __get_pydantic_core_schema__(
         cls, source_type: Any, handler: GetCoreSchemaHandler
     ) -> core_schema.CoreSchema:
         """Get pydantic core schema."""
-        return core_schema.no_info_plain_validator_function(cls._validate)
+        return core_schema.union_schema(
+            [
+                core_schema.is_instance_schema(Arrow),
+                core_schema.no_info_plain_validator_function(cls._validate),
+            ]
+        )
 
 
 class SleepModel(IntEnum):
@@ -423,7 +444,9 @@ class MeasureGetMeasResponse(ConfiguredBaseModel):
 
     @field_validator("updatetime")
     @classmethod
-    def _set_timezone_on_updatetime(cls, value: ArrowType, info: ValidationInfo) -> Arrow:
+    def _set_timezone_on_updatetime(
+        cls, value: ArrowType, info: ValidationInfo
+    ) -> Arrow:
         return cast(Arrow, value.to(info.data["timezone"]))
 
 
@@ -576,7 +599,7 @@ class Credentials2(ConfiguredBaseModel):
     client_id: str
     consumer_secret: str
     expires_in: int
-    created: ArrowType = Field(default_factory=arrow.utcnow)
+    created: ArrowType = Field(default_factory=arrow.utcnow)  # type: ignore[assignment]
 
     @property
     def token_expiry(self) -> int:

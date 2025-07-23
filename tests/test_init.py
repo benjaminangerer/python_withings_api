@@ -1,4 +1,5 @@
 """Tets for main API."""
+
 import datetime
 import re
 from unittest.mock import MagicMock
@@ -8,6 +9,7 @@ import arrow
 import pytest
 import responses
 from typing_extensions import Final
+
 from withings_api import WithingsApi, WithingsAuth
 from withings_api.common import (
     AfibClassification,
@@ -1325,7 +1327,8 @@ def test_heart_get_params(withings_api: WithingsApi) -> None:
     withings_api.heart_get(signalid=1234567)
 
     assert_url_query_equals(
-        responses.calls[0].request.url, {"signalid": "1234567"},
+        responses.calls[0].request.url,
+        {"signalid": "1234567"},
     )
 
     assert_url_path(responses.calls[0].request.url, "/v2/heart")
@@ -1347,8 +1350,9 @@ def test_heart_list_params(withings_api: WithingsApi) -> None:
     assert_url_query_equals(responses.calls[0].request.url, {"action": "list"})
 
 
-def assert_url_query_equals(url: str, expected: dict) -> None:
+def assert_url_query_equals(url: str | None, expected: dict) -> None:
     """Assert a url query contains specific params."""
+    assert url is not None
     params: Final = dict(parse.parse_qsl(parse.urlsplit(url).query))
 
     for key in expected:
@@ -1356,6 +1360,7 @@ def assert_url_query_equals(url: str, expected: dict) -> None:
         assert params[key] == expected[key]
 
 
-def assert_url_path(url: str, path: str) -> None:
+def assert_url_path(url: str | None, path: str) -> None:
     """Assert the path of a url."""
+    assert url is not None
     assert parse.urlsplit(url).path == path

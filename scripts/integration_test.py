@@ -10,6 +10,7 @@ from urllib import parse
 import arrow
 from oauthlib.oauth2.rfc6749.errors import MissingTokenError
 from typing_extensions import Final
+
 from withings_api import AuthScope, WithingsApi, WithingsAuth
 from withings_api.common import CredentialsType, GetSleepField, GetSleepSummaryField
 
